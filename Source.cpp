@@ -1,17 +1,21 @@
-﻿
-#include <iostream>
+﻿#include <iostream>
 #include <fstream>
 #include <vector>
 #include <string>
 #include <queue>
 #include <chrono>
-// #include"utils/Table.h"
+//#include"utils/ConsoleUtility.h"
+#include"termcolor.hpp"
+
 #include <cstdlib>
 using namespace std;
 using namespace chrono;
+using namespace termcolor;
+
 
 int loggedInSellerId = 0;
 int loggedInCustomerId = 0;
+
 
 /*Currently in the world of digital market, optimizing the working of system, processing the orders and managing the routes for deliveries is the core thing, which is necessary to run an E-commerce system. Traditional systems don�t offer personalized recommendations and experience a lot of delays while sending the parcels. Now-a-days, customer demands a secure platform that provides customized dashboard, loyalty rewards and maintain thorough user history, these things lack in basic E-commerce systems.
 Significance and Relevance:
@@ -26,13 +30,154 @@ Features:
 �	Smart System: Alerts the admin when a particular product is getting out of stock.
 
 */
+
+void header() {
+
+	cout << "                          ______" << endl;
+	cout << "                         |  ____|                                                " << endl;
+	cout << "                         | |__   ___ ___  _ __ ___  _ __ ___   ___ _ __ ___ ___ " << endl;
+	cout << "                         |  __| / __/ _ \\| '_ ` _ \\| '_ ` _ \\ / _ \\ '__/ __/ _ \\" << endl;
+	cout << "                         | |___| (_| (_) | | | | | | | | | | |  __/ | | (_|  __/" << endl;
+	cout << "                         |______\\___\\___/|_| |_| |_|_| |_| |_|\\___|_|  \\___\\___|" << endl;
+	cout << "                                                        " << endl;
+}
 class ProductCategoryTree;
 class ProductCategoryNode;
 class ProductTree;
 class ProductNode;
+class Seller;
+class Customer;
+class Order;
+class OrderItem;
+class Cart;
+class CartItem;
+class SearchHistory;
+class SearchItem;
+template <typename T>
+class Stack {
+private:
+	struct Node {
+		T data;
+		Node* next;
+		Node(const T& data) : data(data), next(nullptr) {}
+	};
+	Node* top;
+
+public:
+	Stack() : top(nullptr) {}
+
+	void push(const T& data) {
+		Node* newNode = new Node(data);
+		newNode->next = top;
+		top = newNode;
+	}
+
+	void pop() {
+		if (top == nullptr) {
+			cout << "Stack is empty\n";
+			return;
+		}
+		Node* temp = top;
+		top = top->next;
+		delete temp;
+	}
+
+	T peek() const {
+		if (top == nullptr) {
+			throw runtime_error("Stack is empty");
+		}
+		return top->data;
+	}
+
+	bool isEmpty() const {
+		return top == nullptr;
+	}
+
+	void display() const {
+		Node* temp = top;
+		while (temp != nullptr) {
+			cout << temp->data << " ";
+			temp = temp->next;
+		}
+		cout << endl;
+	}
+
+	~Stack() {
+		while (top != nullptr) {
+			pop();
+		}
+	}
+};
+
+template <typename T>
+class Queue {
+private:
+	struct Node {
+		T data;
+		Node* next;
+		Node(const T& data) : data(data), next(nullptr) {}
+	};
+	Node* front;
+	Node* rear;
+
+public:
+	Queue() : front(nullptr), rear(nullptr) {}
+
+	void enqueue(const T& data) {
+		Node* newNode = new Node(data);
+		if (rear == nullptr) {
+			front = rear = newNode;
+			return;
+		}
+		rear->next = newNode;
+		rear = newNode;
+	}
+
+	void dequeue() {
+		if (front == nullptr) {
+			cout << "Queue is empty\n";
+			return;
+		}
+		Node* temp = front;
+		front = front->next;
+		if (front == nullptr) {
+			rear = nullptr;
+		}
+		delete temp;
+	}
+
+	T peek() const {
+		if (front == nullptr) {
+			//error
+		}
+		return front->data;
+	}
+
+	bool isEmpty() const {
+		return front == nullptr;
+	}
+
+	void display() const {
+		Node* temp = front;
+		while (temp != nullptr) {
+			cout << temp->data << " ";
+			temp = temp->next;
+		}
+		cout << endl;
+	}
+
+	~Queue() {
+		while (front != nullptr) {
+			dequeue();
+		}
+	}
+	
+};
 
 ifstream inputFile;
 ofstream outputFile;
+ofstream fout, fout_product;
+ifstream fin, fin_product;
 
 void displayCustomerMenu();
 void manageCategories();
@@ -109,14 +254,17 @@ public:
 	int height;
 	string sellerID;
 	string buyerID;
-	ProductNode(string name, int price, int quantity, string sellerid)
+	ProductNode(string name, int price, int quantity, string productid, string sellerid)
 	{
 		productName = name;
 		productPrice = price;
 		this->quantity = quantity;
 		left = right = NULL;
 		// generate random id
-		productId = generateUniqueID('p');
+		if (productid == " ")
+			productId = generateUniqueID('p');
+		else
+			productId = productid;
 		height = 1;
 		sellerID = sellerid;
 	}
@@ -131,9 +279,11 @@ public:
 	{
 		root = NULL;
 	}
-	void insert(string name, int price, int quantity, string id)
+	void setProductTree(ProductNode* tree) { root = tree; }
+
+	void insert(string name, int price, int quantity, string productId,string sellerId)
 	{
-		root = insertRec(root, name, price, quantity, id);
+		root = insertRec(root, name, price, quantity, productId,sellerId);
 		// return this->;
 	}
 	int height(ProductNode* N)
@@ -170,19 +320,19 @@ public:
 		y->height = max(height(y->left), height(y->right)) + 1;
 		return y;
 	}
-	ProductNode* insertRec(ProductNode* node, string name, int price, int quantity, string id)
+	ProductNode* insertRec(ProductNode* node, string name, int price, int quantity, string productid,string sellerid)
 	{
 		if (node == nullptr)
 		{
-			return new ProductNode(name, price, quantity, id);
+			return new ProductNode(name, price, quantity, productid,sellerid);
 		}
 		if (name < node->productName)
 		{
-			node->left = insertRec(node->left, name, price, quantity, id);
+			node->left = insertRec(node->left, name, price, quantity, productid, sellerid);
 		}
 		else if (name > node->productName)
 		{
-			node->right = insertRec(node->right, name, price, quantity, id);
+			node->right = insertRec(node->right, name, price, quantity, productid, sellerid);
 		}
 		else
 		{
@@ -234,20 +384,10 @@ public:
 			inorderRec(root->left);
 
 			// make table
-			/*std::vector<std::string> headers = {"Name", "Age", "Country"};
-	std::vector<std::vector<std::string>> data = {
-		{"Alice", "30", "USA"},
-		{"Bob", "25", "UK"},
-		{"Charlie", "35", "Canada"}
-	};
 
-	Table table(headers, data);
-	table.display();
-	return 0;
-	vector<std::string> headers = { "Name", "Price", "Quantity" };
-	vector<std::vector<std::string>> data;
-	data.push_back({ root->productName, "1", "1" });
-	Table table(headers, data);*/
+
+
+
 
 			cout << root->productName << " " << root->productPrice << " " << root->quantity << endl;
 			inorderRec(root->right);
@@ -277,7 +417,7 @@ public:
 			}
 		}
 	}
-	void writeProductsInFile(ofstream& os)
+	void writeProductsInFile(ofstream& os, string category_id)
 	{
 		if (root)
 		{
@@ -288,38 +428,17 @@ public:
 			{
 				ProductNode* n = q.front();
 				q.pop();
-				outputFile << n->productId << endl;
-				outputFile << n->productName << endl;
-				outputFile << n->productPrice << endl;
-				outputFile << n->quantity << endl;
+				fout_product << category_id << endl;
+				fout_product << n->productId << endl;
+				fout_product << n->productName << endl;
+				fout_product << n->productPrice << endl;
+				fout_product << n->quantity << endl;
 
 				if (n->left)
 					q.push(n->left);
 				if (n->right)
 					q.push(n->right);
 			}
-		}
-	}
-	void readProductsFromFile(ifstream& inputFile ,bool& userFound) {
-		string productid, productname;
-		int price, quantity;
-		string cat;
-		if (inputFile.is_open())
-		{
-			while (inputFile >> productid && productid != "User")
-			{
-				inputFile >> productname>>price>>quantity;
-
-				
-				insert(productname,price,quantity,productid);
-			}
-			if (productid == "User") {
-				userFound = true;
-			}
-		}
-		else
-		{
-			cout << "Error: Could not open file for reading.\n";
 		}
 	}
 	ProductNode* search(string name)
@@ -441,23 +560,54 @@ public:
 		}
 		return current;
 	}
+	void countProducts() {
+		if (root)
+		{
+			queue<ProductNode*> q;
+
+			q.push(root);
+			while (!q.empty())
+			{
+				ProductNode* n = q.front();
+				q.pop();
+				if (n->quantity == 0) {
+					cout << "\nProduct is out of stock\nProduct Name: ";
+					cout << n->productName;
+					
+				}
+				if (n->left)
+					q.push(n->left);
+				if (n->right)
+					q.push(n->right);
+			}
+		}
+	}
 };
 class ProductCategoryNode
 {
 public:
 	string categoryName;
+	string unique_id;
 	ProductCategoryNode* left;
 	ProductCategoryNode* right;
 	ProductTree productTree;
 	int height;
-	ProductCategoryNode(string name)
+	ProductCategoryNode(string name, string categoryID)
 	{
 		categoryName = name;
 		left = right = NULL;
 		// generate random id
+		if (categoryID == " ")
+			unique_id = generateUniqueID('t');
+		else
+			unique_id = categoryID;
 		height = 1;
 	}
 	ProductTree& getProdutTree() { return this->productTree; }
+	void setProductTree(ProductTree tree) {
+		tree;
+		this->productTree = tree; 
+	}
 };
 
 // Use binary search trees to store products based on categories
@@ -465,24 +615,24 @@ class ProductCategoryTree
 {
 public:
 	ProductCategoryNode* root;
-
+	
 	ProductCategoryTree()
 	{
 		root = NULL;
 	}
-	void insert(string name)
+	void insert(string name, string id = " ")
 	{
-		root = insertRec(root, name);
+		root = insertRec(root, name, id);
 		// return this->;
 	}
-	ProductCategoryNode* insertRec(ProductCategoryNode* node, string name)
+	ProductCategoryNode* insertRec(ProductCategoryNode* node, string name, string id)
 	{
 		if (node == nullptr)
-			return new ProductCategoryNode(name);
+			return new ProductCategoryNode(name, id);
 		if (name < node->categoryName)
-			node->left = insertRec(node->left, name);
+			node->left = insertRec(node->left, name, id);
 		else if (name > node->categoryName)
-			node->right = insertRec(node->right, name);
+			node->right = insertRec(node->right, name, id);
 		else
 			return node;
 		node->height = 1 + max(height(node->left), height(node->right));
@@ -512,6 +662,62 @@ public:
 			}
 		}
 		return node;
+	}
+	void insertTree(ProductCategoryTree tree) {
+		insert(tree.root->categoryName, tree.root->unique_id);
+
+		if (root)//adding product tree of categorytree of parameter to root
+		{
+			queue<ProductCategoryNode*> q;
+			q.push(root);
+			while (!q.empty())
+			{
+				ProductCategoryNode* n = q.front();
+				q.pop();
+				if (n->unique_id == tree.root->unique_id) {
+					n->setProductTree(tree.getProductTreeFromCategoryTree());
+				}
+				if (n->left)
+					q.push(n->left);
+				if (n->right)
+					q.push(n->right);
+			}
+		}
+
+
+		//root->setProductTree(tree.getProductTreeFromCategoryTree());
+		
+	}
+	ProductTree getProductTreeFromCategoryTree() {
+		return root->getProdutTree();
+	}
+	
+	int size()
+	{
+		return sizeRec(root);
+	}
+	int sizeRec(ProductCategoryNode* root)
+	{
+		if (root == NULL)
+			return 0;
+		return sizeRec(root->left) + sizeRec(root->right) + 1;
+	}
+
+	// convert to array function
+	string* convertToArray()
+	{
+		string* arr = new string[size()];
+		int i = 0;
+		convertToArrayRec(root, arr, i);
+		return arr;
+	}
+	void convertToArrayRec(ProductCategoryNode* root, string* arr, int& i)
+	{
+		if (root == NULL)
+			return;
+		convertToArrayRec(root->left, arr, i);
+		arr[i++] = root->categoryName;
+		convertToArrayRec(root->right, arr, i);
 	}
 	/*ProductCategoryNode* insertRec(ProductCategoryNode* root, string name) {
 		if (root == NULL) {
@@ -560,8 +766,9 @@ public:
 			}
 		}
 	}
-	void writeCategoriesInFile(ofstream& os)
+	string writeCategoriesInFile(ofstream& os, string id)
 	{
+		string category_id;
 		if (root)
 		{
 			queue<ProductCategoryNode*> q;
@@ -570,13 +777,18 @@ public:
 			{
 				ProductCategoryNode* n = q.front();
 				q.pop();
-				outputFile << n->categoryName << endl;
+				fout << id << endl;
+				category_id = n->unique_id;
+				fout << n->unique_id << endl;
+				fout << n->categoryName << endl;
+				//				id = n->unique_id;
 				if (n->left)
 					q.push(n->left);
 				if (n->right)
 					q.push(n->right);
 			}
 		}
+		return category_id;
 	}
 	void writeProductsInFile(ofstream& os)
 	{
@@ -588,7 +800,9 @@ public:
 			{
 				ProductCategoryNode* n = q.front();
 				q.pop();
-				n->getProdutTree().writeProductsInFile(os);
+				string id;
+				id = n->unique_id;// talha
+				n->getProdutTree().writeProductsInFile(os, id);
 				if (n->left)
 					q.push(n->left);
 				if (n->right)
@@ -596,27 +810,8 @@ public:
 			}
 		}
 	}
-	void readCategoriesFromFile(ifstream& input) {
-		string cat;
-		if (inputFile.is_open())
-		{
-			while (inputFile >> cat)
-			{
-				if (cat == "Products") {
-					break;
-				}
-				insert(cat);
-			}
-
-		}
-		else
-		{
-			cout << "Error: Could not open file for reading.\n";
-		}
-
-	}
-	void readProductsFromFile(ifstream& is) {
-		bool userFound = false;
+	/*void writeProductsInFile(ofstream& os, string category_id)
+	{
 		if (root)
 		{
 			queue<ProductCategoryNode*> q;
@@ -625,14 +820,14 @@ public:
 			{
 				ProductCategoryNode* n = q.front();
 				q.pop();
-				n->getProdutTree().readProductsFromFile(is,userFound);
+				n->getProdutTree().writeProductsInFile(os, category_id);
 				if (n->left)
 					q.push(n->left);
 				if (n->right)
 					q.push(n->right);
 			}
 		}
-	}
+	}*/
 	ProductCategoryNode* search(string name)
 	{
 		return searchRec(root, name);
@@ -797,7 +992,349 @@ public:
 		y->height = max(height(y->left), height(y->right)) + 1;
 		return y;
 	}
+	void checkCategories() {
+		checkCategoriesRec(root);
+	}
+	void checkCategoriesRec(ProductCategoryNode* root) {
+		cout << "\nNotifications:\n\n"; //show seller if a particular product is over
+		if (root)
+		{
+			queue<ProductCategoryNode*> q;
+			q.push(root);
+			while (!q.empty())
+			{
+				ProductCategoryNode* n = q.front();
+				q.pop();
+				n->getProdutTree().countProducts();
+
+				if (n->left)
+					q.push(n->left);
+				if (n->right)
+					q.push(n->right);
+			}
+		}
+		cout << endl<<endl;
+		system("pause");
+	}
 };
+
+
+string cit[8] = { "Lahore","Faisalabad","Multan","Karachi","Islamabad","Okara","Murree","Kashmir" };
+int getCityIndex(string source) {
+	for (int i = 0; i < 8; i++) {
+		if (cit[i] == source) {
+			return i;
+		}
+	}
+}
+// Helper function to print the path recursively
+void printPath(int parent[], int cityIndex) {
+	if (parent[cityIndex] == -1) {
+		cout << cit[cityIndex];
+		return;
+	}
+	printPath(parent, parent[cityIndex]);
+	cout << " -> " << cit[cityIndex];
+}
+void printPath2(int parent[], int cityIndex, string& path) {
+	if (parent[cityIndex] == -1) {
+		path += cit[cityIndex];
+		return;
+	}
+	printPath2(parent, parent[cityIndex], path);
+	path += " -> " + cit[cityIndex];
+}
+
+string setCityName() {
+	cout << "\nFollowing are cities\nSelect a city\nEnter the number of city\n\n";
+	for (int i = 0; i < 8; i++) {
+		cout << i + 1 <<"->  "<< cit[i] << endl;
+	}
+	cout << "\nEnter number of city: ";
+	int num;
+	cin >> num;
+	if (num > 0 && num < 9) {
+		return cit[num - 1];
+	}
+	else {
+		cout << "\nWrong number entered";
+		cout << "\nRedirecting\n\n ";
+		system("pause");
+		return setCityName();
+	}
+}
+
+class CityNode {
+public:
+
+	//string name;
+	int index;
+	int weight;
+	CityNode* next;
+
+	CityNode(int index, int weight) : index(index), next(nullptr), weight(weight) {}
+};
+class City {
+
+public:
+	string name;
+	int index;
+	static int i;
+	CityNode* head;
+	City(string a) :name(a), index(i++), head(nullptr) {}
+	City() :name(""), index(i++), head(nullptr) {}
+
+	void addCity(string cityName, int weight) {
+		CityNode* newCity = new CityNode(getCityIndex(cityName), weight);
+		if (head == nullptr) {
+			head = newCity;
+		}
+		else {
+			CityNode* temp = head;
+			while (temp->next != nullptr) {
+				temp = temp->next;
+			}
+			temp->next = newCity;
+		}
+
+	}
+
+	void viewCities() {
+		if (head == nullptr) {
+			cout << "No cities to display." << endl;
+			return;
+		}
+		CityNode* temp = head;
+		while (temp != nullptr) {
+			cout << temp->index << " -->  " << temp->weight << " kms" << endl;
+			temp = temp->next;
+		}
+	}
+};
+int City::i = 0;
+
+class PriorityQueue {
+
+	CityNode* head;  // Head pointer of the linked list
+
+public:
+	PriorityQueue() : head(nullptr) {}
+
+	// Insert node while maintaining sorted order
+	void insert(int cityIndex, int weight) {
+		CityNode* newNode = new CityNode(cityIndex, weight);
+
+		// If the list is empty or the new node has the smallest weight
+		if (!head || weight < head->weight) {
+			newNode->next = head;
+			head = newNode;
+			return;
+		}
+
+		// Traverse the list to find the correct position
+		CityNode* temp = head;
+		while (temp->next && temp->next->weight <= weight) {
+			temp = temp->next;
+		}
+
+		// Insert the new node
+		newNode->next = temp->next;
+		temp->next = newNode;
+	}
+
+	// Extract and remove the node with the minimum weight (head node)
+	int extractMin() {
+		if (!head) {
+			cout << "Priority Queue is empty!\n";
+			return -1;
+		}
+
+		CityNode* temp = head;
+		int minCityIndex = temp->index;
+
+		head = head->next;  // Move the head to the next node
+		delete temp;        // Free the old head node
+
+		return minCityIndex;
+	}
+
+	// Check if the queue is empty
+	bool isEmpty() {
+		return head == nullptr;
+	}
+};
+
+class Graph {
+	City* city;
+public:
+	Graph() {
+		initiateCity();
+		initiateWeights();
+	}
+	~Graph() {
+		delete[] city;
+	}
+	void initiateCity() {
+		city = new City[8];
+
+		for (int i = 0; i < 8; i++) {
+			city[i].name = cit[i];
+		}
+	}
+	void initiateWeights() {
+
+		// Lahore (cit[0]) connections
+		city[0].addCity("Faisalabad", 180);
+		city[0].addCity("Multan", 340);
+		city[0].addCity("Karachi", 1200);
+		city[0].addCity("Islamabad", 290);
+		city[0].addCity("Okara", 110);
+		city[0].addCity("Murree", 370);
+		city[0].addCity("Kashmir", 520);
+
+		// Faisalabad (cit[1]) connections
+		city[1].addCity("Lahore", 180);
+		city[1].addCity("Multan", 200);
+		city[1].addCity("Karachi", 1100);
+		city[1].addCity("Islamabad", 330);
+		city[1].addCity("Okara", 90);
+		city[1].addCity("Murree", 390);
+		city[1].addCity("Kashmir", 510);
+
+		// Multan (cit[2]) connections
+		city[2].addCity("Lahore", 340);
+		city[2].addCity("Faisalabad", 200);
+		city[2].addCity("Karachi", 950);
+		city[2].addCity("Islamabad", 540);
+		city[2].addCity("Okara", 150);
+		city[2].addCity("Murree", 570);
+		city[2].addCity("Kashmir", 690);
+
+		// Karachi (cit[3]) connections
+		city[3].addCity("Lahore", 1200);
+		city[3].addCity("Faisalabad", 1100);
+		city[3].addCity("Multan", 950);
+		city[3].addCity("Islamabad", 1370);
+		city[3].addCity("Okara", 1250);
+		city[3].addCity("Murree", 1500);
+		city[3].addCity("Kashmir", 1600);
+
+		// Islamabad (cit[4]) connections
+		city[4].addCity("Lahore", 290);
+		city[4].addCity("Faisalabad", 330);
+		city[4].addCity("Multan", 540);
+		city[4].addCity("Karachi", 1370);
+		city[4].addCity("Okara", 400);
+		city[4].addCity("Murree", 70);
+		city[4].addCity("Kashmir", 150);
+
+		// Okara (cit[5]) connections
+		city[5].addCity("Lahore", 110);
+		city[5].addCity("Faisalabad", 90);
+		city[5].addCity("Multan", 150);
+		city[5].addCity("Karachi", 1250);
+		city[5].addCity("Islamabad", 400);
+		city[5].addCity("Murree", 450);
+		city[5].addCity("Kashmir", 500);
+
+		// Murree (cit[6]) connections
+		city[6].addCity("Lahore", 370);
+		city[6].addCity("Faisalabad", 390);
+		city[6].addCity("Multan", 570);
+		city[6].addCity("Karachi", 1500);
+		city[6].addCity("Islamabad", 70);
+		city[6].addCity("Okara", 450);
+		city[6].addCity("Kashmir", 130);
+
+		// Kashmir (cit[7]) connections
+		city[7].addCity("Lahore", 520);
+		city[7].addCity("Faisalabad", 510);
+		city[7].addCity("Multan", 690);
+		city[7].addCity("Karachi", 1600);
+		city[7].addCity("Islamabad", 150);
+		city[7].addCity("Okara", 500);
+		city[7].addCity("Murree", 130);
+	}
+
+	void viewGraph() {
+		for (int i = 0; i < 8; i++) {
+			cout << "City: " << city[i].name << endl;
+			city[i].viewCities();
+			cout << endl;
+		}
+	}
+	int dijakstra(string source,int indexOfCustomerCity,string& pathCities) {
+		int index = getCityIndex(source);
+
+		//visited cities
+		bool visited[8];
+
+		//array of weights
+		int weight[8];
+		int max = 999999;
+		// Parent array to store paths
+		int parent[8];
+
+		//intializing weight with max and visting false
+		for (int i = 0; i < 8; i++) {
+			weight[i] = max;
+			visited[i] = false;
+			parent[i] = -1;
+		}
+		weight[index] = 0;
+
+		PriorityQueue pq;
+		pq.insert(index, 0);
+
+		City* cityptr;
+		while (!pq.isEmpty()) {
+			int minIndex = pq.extractMin(); //dequeue and get index of next city which weight is less
+			cityptr = &city[minIndex];//get city
+			CityNode* nodeptr = cityptr->head;//get it's node head
+			while (nodeptr) {
+				if (!visited[nodeptr->index]) {//if it is already visited we will not visit again
+
+					//if current weight of city is less than the sum we will update
+					//weight[nodeptr->index] is current weight of the node which we accessed from head
+					//weight[minIndex] is weight of city from which we are finding path
+					//nodeptr->weight is weight of path
+					if (nodeptr->weight + weight[minIndex] < weight[nodeptr->index]) {
+						weight[nodeptr->index] = nodeptr->weight + weight[minIndex];
+						pq.insert(nodeptr->index, weight[nodeptr->index]);
+						parent[nodeptr->index] = minIndex;
+					}
+				}
+				nodeptr = nodeptr->next;
+			}
+
+
+			visited[minIndex] = true;
+		}
+
+		//// Display shortest distances
+		//cout << "Shortest distances from " << source << ":\n";
+		//for (int i = 0; i < 8; i++) {
+		//	cout << cit[i] << ": " << weight[i] << " kms" << endl;
+		//}
+
+		//// Path reconstruction
+		//cout << "\nPaths to each city:\n";
+		//for (int i = 0; i < 8; i++) {
+		//	if (i == index) continue; // Skip the source itself
+		//	cout << "Path to " << cit[i] << ": ";
+		//	printPath(parent, i);
+		//	cout << " (" << weight[i] << " kms)" << endl;
+		//}
+
+		printPath2(parent, indexOfCustomerCity,pathCities);
+
+		return weight[indexOfCustomerCity];
+	}
+};
+Graph graph;
+
+
+
 
 class Seller
 {
@@ -836,14 +1373,14 @@ public:
 
 	// get Product tree
 	ProductCategoryTree& getProductCategoryTree() { return categoryTree; }
+	void setProductCategoryTree(ProductCategoryNode* tree) { categoryTree.root = tree; }
 	void insertDetails()
 	{
 		cout << "Enter your email id: ";
 		getline(cin, email);
 		cout << "Enter your password: ";
 		getline(cin, password);
-		cout << "Enter your address: ";
-		getline(cin, address);
+		address = setCityName();
 	}
 	void displayDetails() const
 	{
@@ -858,7 +1395,7 @@ public:
 		}
 	}
 };
-
+vector<Seller> sellers;
 // stack for cart
 class CartItem
 {
@@ -909,7 +1446,7 @@ public:
 		}
 		while (temp)
 		{
-			cout << temp->product->productName << " " << temp->product->productPrice << " " << temp->quantity << endl;
+			cout << "Product Name: " << temp->product->productName << " " << "Quantity: " << temp->quantity << endl;
 			temp = temp->next;
 		}
 	}
@@ -948,8 +1485,7 @@ public:
 		{
 			prev->next = temp->next;
 		}
-		// increase quantity
-		temp->product->quantity += temp->quantity;
+		
 		delete temp;
 	}
 };
@@ -981,6 +1517,12 @@ public:
 	// push , pop functions
 	void push(string name)
 	{
+		SearchItem* ptr = head;
+		while (ptr) {
+			if (ptr->name == name) return;
+			ptr = ptr->next;
+
+		}
 		SearchItem* temp = new SearchItem(name);
 		temp->next = head;
 		head = temp;
@@ -1025,7 +1567,7 @@ private:
 	Cart cart;
 
 public:
-	Customer() : customerId(++customerIdCounter), email(""), password(""), address(""), role("customer"), toDelete(false), loyaltyPoints(0), uniqueID(generateUniqueID('p')) {}
+	Customer() : customerId(customerIdCounter++), email(""), password(""), address(""), role("customer"), toDelete(false), loyaltyPoints(0), uniqueID(generateUniqueID('p')) {}
 	void setLoyaltyPoints(int points) { loyaltyPoints = points; }
 	int getLoyaltyPoints() const { return loyaltyPoints; }
 	void setEmail(const string& email) { this->email = email; }
@@ -1051,8 +1593,8 @@ public:
 		getline(cin, email);
 		cout << "Enter your password: ";
 		getline(cin, password);
-		cout << "Enter your address: ";
-		getline(cin, address);
+		address=setCityName();
+		
 	}
 	void displayDetails() const
 	{
@@ -1074,21 +1616,48 @@ class OrderItem
 public:
 	ProductNode* product;
 	string status;
-	int orderID;
+	string orderID;
 	string sellerID;
 	string customerID;
 	OrderItem* next;
-	OrderItem(ProductNode* product, string status, int orderID, string sellerID, string customerID)
+	int quantity;
+	int distanceTravelledByProduct = 0;
+	string deliveryCities;
+	OrderItem(ProductNode* product, string status, string orderID, string sellerID, string customerID, int quantity,string customerCity)
 	{
 		this->product = product;
 		this->status = status;
 		this->orderID = orderID;
 		this->sellerID = sellerID;
 		this->customerID = customerID;
-
+		this->quantity = quantity;
+		deliveryCities="";
 		next = NULL;
 	}
+
+	void setAddress(string sellerID, string customerCity) {
+		//first get the city of seller
+		string sellerCity;
+		for (const auto& seller : sellers)
+		{
+			if (sellerID == seller.getUniqueID() )
+			{
+				sellerCity = seller.getAddress();
+				break;
+			}
+		}
+
+		//compute path using dijakstra
+
+		this->distanceTravelledByProduct= graph.dijakstra(sellerCity, getCityIndex(customerCity),this->deliveryCities);
+		//directly change delivery cities in dijakstra function
+
+	}
 };
+int Customer::customerIdCounter = 0;
+int Seller::sellerStaticId = 0;
+
+vector<Customer> customers;
 
 class Order
 {
@@ -1099,17 +1668,26 @@ public:
 	{
 		front = rear = NULL;
 	}
-	void enqueue(ProductNode* ProductNode, string status, int orderID, string sellerID, string customerID)
+	void enqueue(ProductNode* ProductNode, string status, string orderID, string sellerID, string customerID, int quantity,string customerCity)
 	{
-		OrderItem* temp = new OrderItem(ProductNode, status, orderID, sellerID, customerID);
+		OrderItem* temp = new OrderItem(ProductNode, status, orderID, sellerID, customerID, quantity,customerCity);
 		if (rear == NULL)
 		{
 			front = rear = temp;
-			return;
+			
 		}
+		else {
 		rear->next = temp;
 		rear = temp;
+
+		}
+
+
+		
+		temp->setAddress(sellerID, customerCity);
 	}
+	
+
 	void dequeue()
 	{
 		if (front == NULL)
@@ -1126,7 +1704,7 @@ public:
 		delete temp;
 	}
 
-	void changeStatus(int orderID, string status)
+	void changeStatus(string orderID, string status)
 	{
 		OrderItem* temp = front;
 		while (temp && temp->orderID != orderID)
@@ -1141,39 +1719,127 @@ public:
 		temp->status = status;
 	}
 
-	void cancelStatus() {
+	void cancelStatus(OrderItem* front, string orderID)
+	{
 		OrderItem* temp = front;
-		while (temp)
+		while (temp && temp->orderID != orderID)
 		{
-			if (temp->status == "Pending") {
-				temp->status = "Cancelled";
-				//change quantity
-				temp->product->quantity += temp->product->quantity;
-			}
 			temp = temp->next;
 		}
+		if (temp == NULL)
+		{
+			cout << "Order not found\n";
+			return;
+		}
+		temp->status = "Cancelled";
+		temp->product->quantity += temp->quantity;
+
 	}
 
-
-
-	void display()
+	void dispatchStatus(string orderID)
 	{
-		/**	vector<string> headers = {"Name", "Price", "Quantity", "Status", "OrderID", "SellerID", "CustomerID"};
-			vector<vector<string>> data;
+		OrderItem* temp = front;
+		while (temp && temp->orderID != orderID)
+		{
+			temp = temp->next;
+		}
+		if (temp == NULL)
+		{
+			cout << "Order not found\n";
+			return;
+		}
+		temp->status = "Dispatched";
 
+		for (auto& seller : sellers)
+		{
+			if (seller.getUniqueID() == temp->sellerID)
+			{
+				cout << "Order dispatched from: " << seller.getAddress() << endl;
+				break;
+			}
+		}
+		for (auto& customer : customers)
+		{
+			if (customer.getUniqueID() == temp->customerID)
+			{
+				cout << "Order dispatched to: " << customer.getAddress() << endl;
+				break;
+			}
+		}
+
+
+	}
+
+	void display(string customerID = "null", string sellerID = "null")
+	{
+		if (customerID != "null")
+		{
 			OrderItem* temp = front;
-			while (temp) {
-				data.push_back({temp->name, to_string(temp->price), to_string(temp->quantity), temp->status, to_string(temp->orderID), to_string(temp->sellerID), to_string(temp->customerID)});
+			bool found = false;
+			while (temp)
+			{
+				if (temp->customerID == customerID)
+				{
+					cout << "Order ID: " << temp->orderID << endl;
+					cout << "Product Name: " << temp->product->productName << endl;
+					cout << "Quantity: " << temp->quantity << endl;
+					cout << "Status: " << temp->status << endl;
+					cout << "Seller ID: " << temp->sellerID << endl;
+					cout << "Path followed by order: " << temp->deliveryCities << endl;
+					cout << "Total distance covered: "<<temp->distanceTravelledByProduct<<endl;
+					cout << "====================================\n";
+					found = true;
+				}
 				temp = temp->next;
 			}
-
-			Table table(headers, data);
-			table.display();*/
-		OrderItem* temp = front;
-		while (temp)
-		{
-			cout << temp->product->productName << " " << temp->product->productPrice << " " << temp->product->quantity << " " << temp->status << " " << temp->orderID << " " << temp->sellerID << " " << temp->customerID << endl;
+			if (!found)
+			{
+				cout << "No orders found\n";
+			}
 		}
+		else if (sellerID != "null")
+		{
+			OrderItem* temp = front;
+			bool found = false;
+			while (temp)
+			{
+				if (temp->sellerID == sellerID)
+				{
+					cout << "Order ID: " << temp->orderID << endl;
+					cout << "Product Name: " << temp->product->productName << endl;
+					cout << "Quantity: " << temp->quantity << endl;
+					cout << "Status: " << temp->status << endl;
+					cout << "Customer ID: " << temp->customerID << endl;
+					cout << "Path followed by order: " << temp->deliveryCities << endl;
+					cout << "Total distance covered: " << temp->distanceTravelledByProduct << endl;
+					cout << "====================================\n";
+					found = true;
+				}
+				temp = temp->next;
+			}
+			if (!found)
+			{
+				cout << "No orders found\n";
+			}
+		}
+		else
+		{
+			OrderItem* temp = front;
+			while (temp)
+			{
+				cout << "Order ID: " << temp->orderID << endl;
+				cout << "Product Name: " << temp->product->productName << endl;
+				cout << "Quantity: " << temp->quantity << endl;
+				cout << "Status: " << temp->status << endl;
+				cout << "Seller ID: " << temp->sellerID << endl;
+				cout << "Customer ID: " << temp->customerID << endl;
+				cout << "Path followed by order: " << temp->deliveryCities << endl;
+				cout << "Total distance covered: " << temp->distanceTravelledByProduct << endl;
+				cout << "====================================\n";
+				temp = temp->next;
+			}
+		}
+		system("pause");
 	}
 
 	void deleteItem(string name)
@@ -1200,22 +1866,305 @@ public:
 		}
 		delete temp;
 	}
+
+	void sellerDispatch(string sellerid) {
+		OrderItem* temp = front;
+		bool found = false;
+		if (front) {
+			while (temp) {
+				if(temp->sellerID == sellerid && temp->status=="Ordered") {
+					cout << "\n\n~~~~~~~~~~~~~~~~~~~~~~~~~";
+					cout << "\n\nOrder ID: " << temp->orderID << endl;
+					cout << "Product Name: " << temp->product->productName << endl;
+					cout << "Quantity: " << temp->quantity << endl;
+					cout << "Status: " << temp->status << endl;
+					cout << "Seller ID: " << temp->sellerID << endl;
+					cout << "Customer ID: " << temp->customerID << endl;
+					cout << "====================================\n";
+					found = true;
+					cout << "Want to dispatch this ?\nPress y:  ";
+					string a;
+					cin >> a;
+					if (a == "y" || a == "Y") {
+						temp->status = "Dispatched";
+					}
+				}
+				
+				temp = temp->next;
+			}
+			if (!found) {
+				cout << "\nNo orders in the dispatch\n\n";
+				return;
+				
+			}
+			
+		}
+		else {
+			cout << "No orders in the dispatch";
+		}
+	}
+	void orderHistory(string sellerid) {
+		OrderItem* temp = front;
+		int total = 0;
+		bool found = false;
+		if (front) {
+			while (temp) {
+				if (temp->sellerID == sellerid && temp->status == "Dispatched") {
+					cout << "\n\n~~~~~~~~~~~~~~~~~~~";
+					cout << "Order ID: " << temp->orderID << endl;
+					cout << "Product Name: " << temp->product->productName << endl;
+					cout << "Quantity: " << temp->quantity << endl;
+					cout << "Status: " << temp->status << endl;
+					cout << "Seller ID: " << temp->sellerID << endl;
+					cout << "Customer ID: " << temp->customerID << endl;
+					cout << "====================================\n";
+					found = true;
+					int multiply= temp->quantity * temp->product->productPrice;
+					total += multiply;
+				}
+
+				temp = temp->next;
+			}
+			if (!found) {
+				cout << "No orders in the dispatch";
+				return;
+
+			}
+			else {
+				cout << "\n\nTotal sales: " << total;
+			}
+			
+		}
+		else {
+			cout << "No orders in the dispatch";
+		}
+	}
+	bool isEmpty() {
+		return front == nullptr;
+	}
+	OrderItem* getFront() {
+		return front;
+	}
+
 };
+Order orderQueue;
+void writeOrderQueueinFile() {
+	outputFile.open("orderQueue.txt", ios::trunc);
+	outputFile.close();
+	outputFile.clear();
+	outputFile.open("orderQueue.txt", ios::app);
+	if (outputFile.is_open())
+	{
+		while (!orderQueue.isEmpty()) {
+			OrderItem*  ptr=orderQueue.getFront();
 
-int Customer::customerIdCounter = 0;
-int Seller::sellerStaticId = 0;
+			outputFile << ptr->product->productId  << endl;
+			outputFile << ptr->status << endl;
+			outputFile << ptr->orderID << endl;
+			outputFile << ptr->sellerID<< endl;
+			outputFile <<  ptr->customerID<< endl;
+			outputFile <<ptr->quantity  << endl;
+			outputFile << ptr->distanceTravelledByProduct << endl;
+			outputFile << ptr->deliveryCities << endl;
+			orderQueue.dequeue();
 
-vector<Customer> customers;
-vector<Seller> sellers;
+
+		}
+		
+		outputFile.close();
+		outputFile.clear();
+	}
+	else
+	{
+		cout << "Error: Could not open file for writing.\n";
+	}
+}
+
+void viewCart()
+{
+
+	do {
+		system("cls");
+		cout << green << endl;
+		header();
+		cout << "\n\n\n\n";
+		cout << "Main Menu > Customer Menu > View Cart\n\n" << white;
+		//check empty cart
+		if (customers[loggedInCustomerId].getCart().top == NULL) {
+			cout << "Cart is empty\n";
+			Sleep(1500);
+			return;
+		}
+		// view cart of logged in customer
+		for (auto& customer : customers)
+		{
+			if (customer.getCustomerId() == loggedInCustomerId)
+			{
+				customer.getCart().display();
+				break;
+			}
+		}
+		// calculate total
+		int total = 0;
+		for (auto& customer : customers)
+		{
+			if (customer.getCustomerId() == loggedInCustomerId)
+			{
+				total = customer.getCart().calculateTotal();
+				break;
+			}
+		}
+		cout << "Total: " << total << endl;
+		// if want to delete something
+
+
+		cout << "1. Delete Item\n";
+		cout << "2. Checkout\n";
+		cout << "3. Go Back\n";
+		int choice;
+		cin >> choice;
+		switch (choice)
+		{
+		case 1:
+		{
+			string name;
+			cout << "Enter product name to delete: ";
+			cin >> name;
+			for (auto& customer : customers)
+			{
+				if (customer.getCustomerId() == loggedInCustomerId)
+				{
+					customer.getCart().deleteItem(name);
+					break;
+				}
+			}
+			break;
+		}
+		case 2:
+		{
+			// checkout
+			// add to orders
+			for (auto& customer : customers)
+			{
+				if (customer.getCustomerId() == loggedInCustomerId)
+				{
+					double total = 0, product = 0;
+					CartItem* temp = customer.getCart().top;
+					cout << endl;
+					while (temp)
+					{
+						cout << "Order queued\n";
+						
+						// Decrease quantity
+						temp->product->quantity -= temp->quantity;
+						//calculate total
+						product = temp->quantity * temp->product->productPrice;
+						total += product;
+
+
+						temp->product->buyerID = customer.getUniqueID();
+
+						orderQueue.enqueue(temp->product, "Ordered", generateUniqueID('o'), temp->product->sellerID, customer.getUniqueID(), temp->quantity,customer.getAddress());
+
+						temp = temp->next;
+					}
+					customer.getCart().top = NULL;
+					cout << "Order placed successfully\n";
+					int originalTotal = total;//if total get change below we will award loyalty points based on this
+					cout << "\nOriginal amount to pay: " << total;
+					int loylaltypoints = customers[loggedInCustomerId].getLoyaltyPoints();
+					if (loylaltypoints > 0) {
+						cout << "\nWant to use your loyalty points?";
+						cout << "\nCurrent points: " << loylaltypoints;
+						cout << "\nYou will get discount of: " << loylaltypoints * 0.01;
+						string c;
+
+						cout << "\nEnter Y  to use all your loyalty points: ";
+						cin >> c;
+						if (c == "Y" || c == "y") {
+							if (loylaltypoints * 0.01 > total) {
+								//if loyality points are greater enough to pay his whole bill
+								int p = loylaltypoints * 0.01;
+								p -= total;
+								total = 0;
+
+								//remaning loyalty  points are setted
+								customers[loggedInCustomerId].setLoyaltyPoints(p);
+							}
+							else {
+								customers[loggedInCustomerId].setLoyaltyPoints(0);
+								total -= loylaltypoints * 0.01;
+							}
+							
+
+						}
+					}
+					
+					cout << "\nTotal amount payed: " << total;
+					if (total == 0) {
+						cout << "\nYour whole bill was payed with help of loyalty points";
+					}
+					cout << "\nTotal loyalty points earned: " << originalTotal * 10;
+					//for the product which is bought now
+					Sleep(2500);
+					int currentpoints= customers[loggedInCustomerId].getLoyaltyPoints();
+
+					customers[loggedInCustomerId].setLoyaltyPoints((originalTotal * 10)+currentpoints);
+					return;
+					break;
+				}
+
+
+
+			} }
+		break;
+		case 3:
+			cout << "Going back...\n";
+			Sleep(1500);
+			return;
+		default:
+			cout << "Invalid choice\n";
+			break;
+		}
+	} while (true && customers[loggedInCustomerId].getCart().top != NULL);
+	// checkout or go back
+
+
+}
+
+void viewOrders()
+{
+	// view orders of logged in customer
+	system("cls");
+	cout << green << endl;
+	header();
+	cout << "\n\n\n\n";
+	cout << "Main Menu > Customer Menu > View Orders\n\n" << white;
+	for (auto& customer : customers)
+	{
+		if (customer.getCustomerId() == loggedInCustomerId)
+		{
+			orderQueue.display(customer.getUniqueID());
+			
+			break;
+		}
+	}
+}
+
 Admin admin("a", "a");
 
 void manageCategories()
 {
 	int choice = 0;
-	string loopChoice;
+
 	do
 	{
-		cout << "\n\nMANAGE Category\n";
+		system("cls");
+		cout << green << endl;
+		header();
+		cout << "\n\n\n\n";
+		cout << "Main Menu > Seller Menu > Manage Categories\n\n" << white;
+
 		cout << "1.Add Category\n";
 		// cout << "2.Delete Category\n";
 		cout << "2.Update Category\n";
@@ -1243,58 +2192,89 @@ void manageCategories()
 			manageProducts();
 			break;
 		case 6:
-			sellerMenu();
+			cout << "Going back...\n";
+			Sleep(1500);
 			return;
 		default:
 			cout << "Invalid choice\n";
 			break;
 		}
-		cout << "Do you want to manage another category? [y]: ";
-		cin >> loopChoice;
-	} while (loopChoice == "Y" || loopChoice == "y");
+
+	} while (true);
 }
 
 void addCategory()
 {
+	system("cls");
+	cout << green << endl;
+	header();
+	cout << "\n\n\n\n";
+	cout << "Main Menu > Seller Menu > Manage Categories > Add Category\n\n" << white;
 	string name;
-
 	cout << "Enter Category name: ";
 	cin.ignore();
 	getline(cin, name);
 	if (name == "")
 	{ // if name is empty
-		addCategory();
+		cout << "Name cannot be empty\n";
+		Sleep(1500);
 		return;
 	}
 
 	// productTree of logged in seller
 	sellers[loggedInSellerId].getProductCategoryTree().insert(name);
 
-	cout << "\nCategory added\n";
+	cout << "\nCategory added successfully\n";
+	Sleep(1500);
 	return;
 }
 
 void updateCategory()
 {
+	system("cls");
+	cout << green << endl;
+	header();
+	cout << "\n\n\n\n";
+	cout << "Main Menu > Seller Menu > Manage Categories > Update Category\n\n" << white;
 	string name;
-	cout << "Enter Category name: ";
-	cin >> name;
+
+	try {
+		cout << "Enter Category name: ";
+		cin >> name;
+	}
+	catch (const exception& e) {
+		cout << "An error occurred: " << e.what() << endl;
+		return;
+	}
 
 	ProductCategoryNode* product = sellers[loggedInSellerId].getProductCategoryTree().search(name);
 	if (product != NULL)
 	{
-		cout << "\nEnetr new name: ";
-		product->categoryName = name;
+		try {
+			cout << "\nEnter new name: ";
+			cin >> name;
+			product->categoryName = name;
+		}
+		catch (const exception& e) {
+			cout << "An error occurred: " << e.what() << endl;
+		}
 	}
 	else
 	{
 		cout << "Category not found\n";
+		Sleep(1500);
 	}
-	cout << name << "  updated";
+	cout << "Category updated successfully\n";
+	Sleep(1500);
 	return;
 }
 void searchCategory()
 {
+	system("cls");
+	cout << green << endl;
+	header();
+	cout << "\n\n\n\n";
+	cout << "Main Menu > Seller Menu > Manage Categories > Search Category\n\n" << white;
 	string name;
 	cout << "Enter Category name: ";
 	cin >> name;
@@ -1303,65 +2283,106 @@ void searchCategory()
 	{
 		cout << "Category found\n";
 		cout << "Name: " << product->categoryName << endl;
+		Sleep(1500);
 		return;
 	}
 	else
 	{
 		cout << "Category not found\n";
+		Sleep(1500);
+
 	}
 }
 void viewAllCategory()
 {
+	system("cls");
+	cout << green << endl;
+	header();
+	cout << "\n\n\n\n";
+	cout << "Main Menu > Seller Menu > Manage Categories > View All Categories\n\n" << white;
 	sellers[loggedInSellerId].getProductCategoryTree().inorder();
-
+	Sleep(1500);
 }
 
 void displayAdminMenu()
 {
+
+
+
 	int choice = 0;
-	cout << "ADMIN MENU\n";
-	cout << "1. Customer options\n2. Seller options\n";
-	cin >> choice;
-	switch (choice)
+
+	do
 	{
-	case 1:
-		displayCustomerMenu();
-		break;
-	case 2:
-		displaySellerMenu();
-		break;
-	default:
-		cout << "Invalid choice\n";
-		break;
-	}
+		system("cls");
+		cout << green << endl;
+		header();
+		cout << "\n\n\n\n";
+		cout << "Main Menu > Admin Menu\n\n" << white;
+
+		cout << "1. Customer options\n2. Seller options\n3. Exit\n";
+		cin >> choice;
+		switch (choice)
+		{
+		case 1:
+			displayCustomerMenu();
+			break;
+		case 2:
+			displaySellerMenu();
+			break;
+		case 3:
+			cout << "Exiting...\n";
+			return;
+		default:
+			cout << "Invalid choice\n";
+			break;
+		}
+
+	} while (true);
 }
 
 void addSeller()
 {
+	system("cls");
+	cout << green << endl;
+	header();
+	cout << "\n\n\n\n";
+	cout << "Main Menu > Admin Menu > Seller Options > Add Seller\n\n" << white;
 	cin.ignore();
 	Seller seller;
 	seller.insertDetails();
 	sellers.push_back(seller);
 	cout << "Added successfully\n";
+	Sleep(1500);
 }
 
 void deleteSeller(int id)
 {
+	system("cls");
+	cout << green << endl;
+	header();
+	cout << "\n\n\n\n";
+	cout << "Main Menu > Admin Menu > Seller Options > Delete Seller\n\n" << white;
 	for (auto& seller : sellers)
 	{
 		if (seller.getSellerId() == id)
 		{
 			seller.setToDelete(true);
 			cout << "Deleted successfully\n";
+			Sleep(1500);
 			return;
 		}
 	}
 	cout << "Not Found\n";
+	Sleep(1500);
 }
 
 void updateSeller(int id)
 {
 	system("cls");
+	cout << green << endl;
+	header();
+	cout << "\n\n\n\n";
+	cout << "Main Menu > Admin Menu > Seller Options > Update Seller\n\n" << white;
 	for (auto& seller : sellers)
 	{
 		if (seller.getSellerId() == id)
@@ -1369,7 +2390,7 @@ void updateSeller(int id)
 			seller.displayDetails();
 			int choice;
 			string update;
-			cout << "1. To edit email\n2. To edit password\n3. To edit address\n";
+			cout << "1.Edit Email\n2.Edit Password\n3.Edit Address\n4.Go back\n";
 			cin >> choice;
 			cin.ignore();
 			switch (choice)
@@ -1389,14 +2410,20 @@ void updateSeller(int id)
 				getline(cin, update);
 				seller.setAddress(update);
 				break;
+			case 4:
+				cout << "Going Back..." << endl;
+				return;
 			default:
 				cout << "Invalid choice\n";
 				break;
 			}
 			cout << "Updated successfully\n";
-			system("Pause");
-			system("cls");
+
+			cout << "Updated Seller Details:\n";
+
 			seller.displayDetails();
+			system("Pause");
+
 			return;
 		}
 	}
@@ -1405,35 +2432,53 @@ void updateSeller(int id)
 
 void searchSeller(int id)
 {
+	system("cls");
+	cout << green << endl;
+	header();
+	cout << "\n\n\n\n";
+	cout << "Main Menu > Admin Menu > Seller Options > Search Seller\n\n" << white;
 	for (const auto& seller : sellers)
 	{
 		if (seller.getSellerId() == id)
 		{
 			seller.displayDetails();
+			system("Pause");
 			return;
 		}
 	}
 	cout << "Not Found\n";
+	Sleep(1500);
 }
 
 void viewAllSellers()
 {
+	system("cls");
+	cout << green << endl;
+	header();
+	cout << "\n\n\n\n";
+	cout << "Main Menu > Admin Menu > Seller Options > View All Sellers\n\n" << white;
 	for (const auto& seller : sellers)
 	{
 		seller.displayDetails();
 		cout << endl
 			<< endl;
+
 	}
+	system("Pause");
 }
 
 void displaySellerMenu()
 {
 	int id = 0, choice = 0;
-	string loopChoice;
+
 	do
 	{
-		cout << "ADMIN MENU\nSELLER OPTIONS\n";
-		cout << "1. To add new seller\n2. To delete existing seller\n3. To update existing seller\n4. To search existing seller\n5. To view all sellers\n";
+		system("cls");
+		cout << green << endl;
+		header();
+		cout << "\n\n\n\n";
+		cout << "Main Menu > Admin Menu > Seller Options\n\n" << white;
+		cout << "1. Add new seller\n2. Delete existing seller\n3. Update existing seller\n4. Search existing seller\n5. View all sellers\n6. Go back\n";
 		cin >> choice;
 		if (choice == 2 || choice == 3 || choice == 4)
 		{
@@ -1457,18 +2502,24 @@ void displaySellerMenu()
 		case 5:
 			viewAllSellers();
 			break;
+		case 6:
+			cout << "Going Back..." << endl;
+			return;
 		default:
 			cout << "Invalid choice\n";
 			break;
 		}
-		cout << "Do you want to perform another operation? [y]: ";
-		cin >> loopChoice;
-	} while (loopChoice == "Y" || loopChoice == "y");
+
+	} while (true);
 }
 
 void updateCustomer(int id)
 {
 	system("cls");
+	cout << green << endl;
+	header();
+	cout << "\n\n\n\n";
+	cout << "Main Menu > Admin Menu > Customer Options > Update Customer\n\n" << white;
 	for (auto& customer : customers)
 	{
 		if (customer.getCustomerId() == id)
@@ -1476,7 +2527,7 @@ void updateCustomer(int id)
 			customer.displayDetails();
 			int choice, points;
 			string update;
-			cout << "1. To edit email\n2. To edit password\n3. To edit loyalty points\n4. To edit address\n";
+			cout << "1.Edit Email\n2.Edit Password\n3.Edit loyalty points\n4.Edit address\n5.Go back\n";
 			cin >> choice;
 			cin.ignore();
 			switch (choice)
@@ -1501,50 +2552,84 @@ void updateCustomer(int id)
 				getline(cin, update);
 				customer.setAddress(update);
 				break;
+			case 5:
+				cout << "Going Back..." << endl;
+				return;
 			default:
 				cout << "Invalid choice\n";
 				break;
 			}
 			cout << "Updated successfully\n";
 			system("Pause");
-			system("cls");
+
 			customer.displayDetails();
 			return;
 		}
 	}
-	cout << "Not Found\n";
+	cout << "Customer Not Found...\n";
+	Sleep(1500);
 }
 
 void addCustomer()
 {
+	system("cls");
+	cout << green << endl;
+	header();
+	cout << "\n\n\n\n";
+	cout << "Main Menu > Admin Menu > Customer Options > Add Customer\n\n" << white;
+
 	cin.ignore();
 	Customer customer;
 	customer.insertDetails();
 	customers.push_back(customer);
-	cout << "Added successfully\n";
+	cout << "Added successfully...\n";
+	Sleep(1500);
 }
 
 void searchCustomer(int id)
 {
+	system("cls");
+	cout << green << endl;
+	header();
+	cout << "\n\n\n\n";
+	cout << "Main Menu > Admin Menu > Customer Options > Search Customer\n\n" << white;
 	for (const auto& customer : customers)
 	{
 		if (customer.getCustomerId() == id)
 		{
 			customer.displayDetails();
+			system("Pause");
 			return;
 		}
 	}
 	cout << "Not Found\n";
+	Sleep(1500);
 }
 
 void deleteCustomer(int id)
 {
+	system("cls");
+	cout << green << endl;
+	header();
+	cout << "\n\n\n\n";
+	cout << "Main Menu > Admin Menu > Customer Options > Delete Customer\n\n" << white;
 	for (auto& customer : customers)
 	{
 		if (customer.getCustomerId() == id)
 		{
-			customer.setToDelete(true);
-			cout << "Deleted successfully\n";
+			customer.displayDetails();
+			//confirm delete
+			string choice;
+			cout << "Are you sure you want to delete this customer? [y/n]: ";
+			cin >> choice;
+			if (choice == "Y" || choice == "y")
+			{
+				customer.setToDelete(true);
+				cout << "Deleted successfully\n";
+				Sleep(1500);
+				return;
+			}
+
 			return;
 		}
 	}
@@ -1553,22 +2638,35 @@ void deleteCustomer(int id)
 
 void viewAllCustomers()
 {
+	system("cls");
+	cout << green << endl;
+	header();
+	cout << "\n\n\n\n";
+	cout << "Main Menu > Admin Menu > Customer Options > View All Customers\n\n" << white;
 	for (const auto& customer : customers)
 	{
 		customer.displayDetails();
 		cout << endl
 			<< endl;
 	}
+	system("Pause");
 }
 
 void displayCustomerMenu()
 {
+
+
 	int id = 0, choice = 0;
 	string loopChoice;
 	do
 	{
-		cout << "ADMIN MENU\nCUSTOMER OPTIONS\n";
-		cout << "1. To add new customer\n2. To delete existing customer\n3. To update existing customer\n4. To search existing customer\n5. To view all customers\n";
+		system("cls");
+		cout << green << endl;
+		header();
+		cout << "\n\n\n\n";
+		cout << "Main Menu > Admin Menu > Customer Options\n\n" << white;
+
+		cout << "1.Add new customer\n2.Delete existing customer\n3.Update existing customer\n4.Search existing customer\n5.View all customers\n6.Go back\n";
 		cin >> choice;
 		if (choice == 2 || choice == 3 || choice == 4)
 		{
@@ -1592,20 +2690,32 @@ void displayCustomerMenu()
 		case 5:
 			viewAllCustomers();
 			break;
+		case 6:
+			cout << "Going Back..." << endl;
+			return;
 		default:
 			cout << "Invalid choice\n";
 			break;
 		}
-		cout << "Do you want to perform another operation? [y]: ";
-		cin >> loopChoice;
-	} while (loopChoice == "Y" || loopChoice == "y");
+
+	} while (true);
 }
 
 void adminLogin()
 {
+	system("cls");
+
+
+	cout << green << endl;
+	header();
+
+
+	cout << "\n\n\n\n";
+	cout << "Main Menu > Admin Login\n\n" << white;
+
 	string email, password;
 	cout << "Enter the email: ";
-	// cin.ignore();    //email ka phla alphabet gayab ho rha tha
+	cin.ignore();    //email ka phla alphabet gayab ho rha tha
 	getline(cin, email);
 
 	cout << "Enter the password: ";
@@ -1613,7 +2723,8 @@ void adminLogin()
 	if (email == admin.getEmail() && password == admin.getPassword())
 	{
 		cout << "Logged in successfully\n";
-		system("Pause");
+
+		Sleep(2000);
 		system("cls");
 		displayAdminMenu();
 	}
@@ -1621,13 +2732,20 @@ void adminLogin()
 	{
 		cout << "Invalid email or password\n";
 
-		system("Pause");
+
+		Sleep(2000);
+
 		system("cls");
 	}
 }
 
 void addProduct(ProductCategoryNode* category)
 {
+	system("cls");
+	cout << green << endl;
+	header();
+	cout << "\n\n\n\n";
+	cout << "Main Menu > Seller Menu > Manage Products > Add Product\n\n" << white;
 	string name;
 	int price, quantity;
 	cout << "Enter product name: ";
@@ -1635,48 +2753,98 @@ void addProduct(ProductCategoryNode* category)
 	cin >> name;
 	if (name == "")
 	{
-		addProduct(category);
+		cout << "Name cannot be empty\n";
+		Sleep(1500);
 		return;
 	}
-	cout << "Enter product price: ";
-	cin >> price;
-	cout << "Enter product quantity: ";
-	cin >> quantity;
-	// producttree of logged in seller
-	category->getProdutTree().insert(name, price, quantity, sellers[loggedInSellerId].getUniqueID());
+	try {
+		cout << "Enter product price: ";
+		cin >> price;
+		cout << "Enter product quantity: ";
+		cin >> quantity;
+	}
+	catch (const exception& e) {
+		cout << "An error occurred: " << e.what() << endl;
 
-	cout << "\nproduct added\n";
-	manageCategories();
+		system("Pause");
+		return;
+	}
+	// producttree of logged in seller
+	category->getProdutTree().insert(name, price, quantity," ", sellers[loggedInSellerId].getUniqueID());
+
+	cout << "\nProduct added...\n";
+	Sleep(1500);
+	return;
+
 }
 
 void deleteProduct(ProductCategoryNode* category)
 {
-	cout << "\n~All products in this category: ";
+	system("cls");
+	cout << green << endl;
+	header();
+	cout << "\n\n\n\n";
+	cout << "Main Menu > Seller Menu > Manage Products > Delete Product\n\n" << white;
+	cout << "\nAll products in this category: ";
 	viewAllProducts(category);
 
 	string name;
 	cout << "Enter product name: ";
 	cin >> name;
-	category->getProdutTree().deleteNode(name);
 
-	cout << name << " deleted";
-	manageCategories();
+	//confirmation
+	char c;
+	cout << "Are you sure you want to delete this product? [y/n]: ";
+	cin >> c;
+	if (c == 'y' || c == 'Y')
+	{
+		category->getProdutTree().deleteNode(name);
+		cout << name << " Deleted";
+		Sleep(1500);
+		return;
+
+	}
+	else
+		cout << "Deletion cancelled";
+
+
+
+
+	return;
 }
-void updateProduct(ProductCategoryNode* category)
-{
+void updateProduct(ProductCategoryNode* category,bool onlyUpdateQuantity)
+{ //if onlyUpdateQuantity  is 1 we will ony update quantity
+	system("cls");
+	cout << green << endl;
+	header();
+	cout << "\n\n\n\n";
+	cout << "Main Menu > Seller Menu > Manage Products > Update Product\n\n" << white;
+
 	string name;
 	int price, quantity;
-	cout << "Enter product name: ";
-	cin >> name;
-	cout << "Enter product price: ";
-	cin >> price;
-	cout << "Enter product quantity: ";
-	cin >> quantity;
+	try {
+		cout << "Enter product name: ";
+		cin >> name;
+		if (!onlyUpdateQuantity) {
+		cout << "Enter product price: ";
+		cin >> price;
+
+		}
+		cout << "Enter product quantity: ";
+		cin >> quantity;
+	}
+	catch (const exception& e) {
+		cout << "An error occurred: " << e.what() << endl;
+		return;
+	}
 	ProductNode* product = category->getProdutTree().search(name);
 
 	if (product != NULL)
 	{
+		if (!onlyUpdateQuantity) {
 		product->productPrice = price;
+
+		}
 		product->quantity = quantity;
 	}
 	else
@@ -1684,10 +2852,17 @@ void updateProduct(ProductCategoryNode* category)
 		cout << "Product not found\n";
 	}
 	cout << name << "  updated";
-	manageCategories();
+	Sleep(1500);
+	return;
 }
 void searchProduct(ProductCategoryNode* category)
 {
+	system("cls");
+	cout << green << endl;
+	header();
+	cout << "\n\n\n\n";
+	cout << "Main Menu > Seller Menu > Manage Products > Search Product\n\n" << white;
+
 	string name;
 	cout << "Enter product name: ";
 	cin >> name;
@@ -1699,17 +2874,27 @@ void searchProduct(ProductCategoryNode* category)
 		cout << "Name: " << product->productName << endl;
 		cout << "Price: " << product->productPrice << endl;
 		cout << "Quantity: " << product->quantity << endl;
+		cout << "Seller ID: " << product->sellerID << endl;
+		system("Pause");
+
 	}
 	else
 	{
 		cout << "Product not found\n";
+		Sleep(1500);
 	}
 	return;
 }
 void viewAllProducts(ProductCategoryNode* category)
 {
+	system("cls");
+	cout << green << endl;
+	header();
+	cout << "\n\n\n\n";
+	cout << "Main Menu > Seller Menu > Manage Products > View All Products\n\n" << white;
 	category->getProdutTree().inorder();
 	category->getProdutTree().levelorder();
+	Sleep(1500);
 
 	return;
 }
@@ -1717,74 +2902,156 @@ void viewAllProducts(ProductCategoryNode* category)
 void manageProducts()
 {
 	int choice = 0;
-	string loopChoice;
-
-	cout << "\n\n~~All categories: ";
-	sellers[loggedInSellerId].getProductCategoryTree().inorder();
-
-	cout << "\nEnter name of category in which you want to manage Product : ";
-	string str;
-	cin >> str;
-
-	ProductCategoryNode* category = sellers[loggedInSellerId].getProductCategoryTree().validCategory(str);
-	if (category)
+	char yt;
+	do
 	{
-		cout << "\n\nMANAGE PRODUCTS\n";
-		cout << "1.Add Product\n";
-		cout << "2.Delete Product\n";
-		cout << "3.Update Product\n";
-		cout << "4.Search Product\n";
-		cout << "5.View All Products\n";
-		cout << "6.Go Back\n";
+		system("cls");
+		cout << green << endl;
+		header();
+		cout << "\n\n\n\n";
+		cout << "Main Menu > Seller Menu > Manage Products\n\n" << white;
+		sellers[loggedInSellerId].getProductCategoryTree().inorder();
+
+		cout << "\nEnter name of category in which you want to manage Product: ";
+		string str;
+		cin >> str;
+		system("cls");
+		cout << green << endl;
+		header();
+		cout << "\n\n\n\n";
+		cout << "Main Menu > Seller Menu > Manage Products\n\n" << white;
+
+		ProductCategoryNode* category = sellers[loggedInSellerId].getProductCategoryTree().validCategory(str);
+		if (category)
+		{
+
+			cout << "1.Add Product\n";
+			cout << "2.Delete Product\n";
+			cout << "3.Update Product\n";
+			cout << "4.Search Product\n";
+			cout << "5.View All Products\n";
+			cout << "6. Update quantity\n";
+			cout << "7.Go Back\n";
+
+			cin >> choice;
+			switch (choice)
+			{
+			case 1:
+				addProduct(category);
+				break;
+			case 2:
+				deleteProduct(category);
+				break;
+			case 3:
+				updateProduct(category,0);
+				break;
+			case 4:
+				searchProduct(category);
+				break;
+			case 5:
+				viewAllProducts(category);
+				break;
+			case 7:
+				cout << "Going back...\n";
+				return;
+			case 6:
+				updateProduct(category, 1);
+			default:
+				cout << "Invalid choice\n";
+				Sleep(1500);
+				break;
+			}
+		}
+		else
+		{
+			cout << "\nIncorrect category name...";
+			Sleep(1500);
+
+		}
+		cout << "Do you want to go stay? Press Y: ";
+		
+		cin >> yt;
+
+	} while (yt=='Y'||yt=='y');
+}
+// seller menu
+
+void dispatchOrders() {
+	orderQueue.sellerDispatch(sellers[loggedInSellerId].getUniqueID());
+}
+void viewHistory() {
+	orderQueue.orderHistory(sellers[loggedInSellerId].getUniqueID());
+
+}
+void viewNotifications() {
+	sellers[loggedInSellerId].getProductCategoryTree().checkCategories(); //counting products here
+	//if product is zero we show notifcation
+}
+void manageOrders()
+{
+	int choice = 0;
+	
+	do
+	{
+		system("cls");
+		cout << green << endl;
+		header();
+		cout << "\n\n\n\n";
+		cout << "Main Menu > Seller Menu > Manage Orders\n\n" << white;
+
+		cout << "1. View Orders\n";
+		cout << "2. Dispatch Orders\n";
+	
+		cout << "3. Go Back\n";
 
 		cin >> choice;
 		switch (choice)
 		{
 		case 1:
-			addProduct(category);
+			// pass seller id to view orders
+			for (auto& seller : sellers)
+			{
+				if (seller.getSellerId() == loggedInSellerId)
+				{
+					orderQueue.display("null", seller.getUniqueID());
+				}
+			}
 			break;
 		case 2:
-			deleteProduct(category);
+			dispatchOrders();
+			system("pause");
 			break;
 		case 3:
-			updateProduct(category);
-			break;
-		case 4:
-			searchProduct(category);
-			break;
-		case 5:
-			viewAllProducts(category);
-			break;
-		case 6:
-			sellerMenu();
+			cout << "Going back...\n";
 			return;
+	
 		default:
 			cout << "Invalid choice\n";
 			break;
-		}
-	}
-	else
-	{
-		cout << "\nIncorrect category name";
-		cout << "\nRedirecting";
-	}
-
+		};
+	} while (true);
 }
-// seller menu
+
 void sellerMenu()
 {
 	int choice = 0;
-	string loopChoice;
+	char yt;
 	do
 	{
-		cout << "SELLER MENU\n";
+
+		system("cls");
+		cout << green << endl;
+		header();
+		cout << "\n\n\n\n";
+		cout << "Main Menu > Seller Menu\n\n" << white;
 		cout << "1. Manage Categories\n";
 		cout << "2. Manage Products\n";
 		cout << "3. Manage Orders\n";
 		cout << "4. View Profile\n";
 		cout << "5. Update Profile\n";
 		cout << "6. View History\n";
-		cout << "7. Logout\n";
+		cout << "7. Check notifications\n";
+		cout << "8. Logout\n";
 
 		cin >> choice;
 		switch (choice)
@@ -1796,32 +3063,41 @@ void sellerMenu()
 			manageProducts();
 			break;
 		case 3:
-			// manageOrders();
+			manageOrders();
 			break;
 		case 4:
 			// viewProfile();
 			break;
 		case 5:
-			// updateProfile();
+			 //updateProfile();
 			break;
 		case 6:
-			// viewHistory();
+			 viewHistory();
 			break;
-		case 7:
+		case 8:
 			cout << "Logging out...\n";
-			menus();
+			Sleep(2000);
 			return;
+		case 7:
+			viewNotifications();
+			break;
 		default:
 			cout << "Invalid choice\n";
+			Sleep(1500);
 			break;
 		}
-		cout << "Do you want to perform another operation? [y]: ";
-		cin >> loopChoice;
-	} while (loopChoice == "Y" || loopChoice == "y");
+
+	} while (true);
 }
 
 void SellerLogin()
 {
+
+	system("cls");
+	cout << green << endl;
+	header();
+	cout << "\n\n\n\n";
+	cout << "Main Menu > Seller Login\n\n" << white;
 	string email, password;
 	cout << "Enter the email: ";
 	cin.ignore();
@@ -1841,31 +3117,61 @@ void SellerLogin()
 		}
 	}
 	cout << "Invalid email or password\n";
-	system("Pause");
+	Sleep(2000);
 	system("cls");
 }
 
 void viewCategories()
 {
-	// view categories of all sellers to show to customer
-	// show all categories only once if it comes twice
-	// store categories names
-	vector<string> categories;
+	system("cls");
+	cout << green << endl;
+	header();
+	cout << "\n\n\n\n";
+	cout << "Main Menu > View Categories\n\n" << white;
 
-	for (auto seller : sellers)
+	// total size of all the categories
+	int sizeTotalCategories = 0;
+	for (auto& seller : sellers)
 	{
-		// do not show if the categroy name already exists
-		for (auto category : categories)
+		sizeTotalCategories += seller.getProductCategoryTree().size();
+	}
+	// dynamic array of that size
+	string* allCategories = new string[sizeTotalCategories];
+	int j = 0;
+	for (auto& seller : sellers)
+	{
+		string* categories = seller.getProductCategoryTree().convertToArray();
+		int size = seller.getProductCategoryTree().size();
+		for (int i = 0; i < size; i++)
 		{
-			if (category == seller.getProductCategoryTree().root->categoryName)
-			{
-				continue;
-			}
-			seller.getProductCategoryTree().inorder();
-			categories.push_back(seller.getProductCategoryTree().root->categoryName);
+			allCategories[j] = categories[i];
+			j++;
+		}
+		delete[] categories;
+	}
 
+	// Remove duplicates
+
+	// Display unique categories
+	cout << "Available Categories:\n";
+	// two inner loops to check if category is duplicate
+	for (int i = 0; i < sizeTotalCategories; i++)
+	{
+		bool isDuplicate = false;
+		for (int j = 0; j < i; j++)
+		{
+			if (allCategories[i] == allCategories[j])
+			{
+				isDuplicate = true;
+				break;
+			}
+		}
+		if (!isDuplicate)
+		{
+			cout << allCategories[i] << endl;
 		}
 	}
+
 	// customer will select a category
 	// then we will show products of that category
 	cout << "Enter the category name: ";
@@ -1874,6 +3180,8 @@ void viewCategories()
 	// get all the products of that category name of all sellers
 	// show to customer
 	// search for category
+	// if any product found then show products of that category
+
 	for (auto& seller : sellers)
 	{
 		ProductCategoryNode* category = seller.getProductCategoryTree().search(str);
@@ -1882,14 +3190,21 @@ void viewCategories()
 			cout << "Seller Name: " << seller.getSellerId() << endl;
 			category->getProdutTree().inorder();
 			cout << "====================================\n";
+
 		}
 	}
+	system("Pause");
 
 	return;
 }
 
 void viewProfile()
 {
+	system("cls");
+	cout << green << endl;
+	header();
+	cout << "\n\n\n\n";
+	cout << "Main Menu > View Profile\n\n" << white;
 
 	// details of logged in customer
 	for (const auto& customer : customers)
@@ -1897,6 +3212,8 @@ void viewProfile()
 		if (customer.getCustomerId() == loggedInCustomerId)
 		{
 			customer.displayDetails();
+			system("Pause");
+			return;
 			break;
 		}
 	}
@@ -1906,6 +3223,11 @@ void viewProfile()
 void updateProfile()
 {
 	// update details of logged in customer
+	system("cls");
+	cout << green << endl;
+	header();
+	cout << "\n\n\n\n";
+	cout << "Main Menu > Customer Menu > Update Profile\n\n" << white;
 	for (auto& customer : customers)
 	{
 		if (customer.getCustomerId() == loggedInCustomerId)
@@ -1913,7 +3235,7 @@ void updateProfile()
 			customer.displayDetails();
 			int choice, points;
 			string update;
-			cout << "1. To edit email\n2. To edit password\n3. To edit address\n";
+			cout << "1.Edit Email\n2.Edit Password\n3.Edit Address\n4.Go back\n";
 			cin >> choice;
 			cin.ignore();
 			switch (choice)
@@ -1939,9 +3261,9 @@ void updateProfile()
 				break;
 			}
 			cout << "Updated successfully\n";
-			system("Pause");
-			system("cls");
+			cout << "Updated Profile Details:\n";
 			customer.displayDetails();
+			system("Pause");
 			return;
 		}
 	}
@@ -1955,6 +3277,11 @@ void searchProduct()
 {
 	// search product for customer
 	// show search history of logged in customer
+	system("cls");
+	cout << green << endl;
+	header();
+	cout << "\n\n\n\n";
+	cout << "Main Menu > Customer Menu > Search Product\n\n" << white;
 	cout << "\nSearch History:\n";
 	for (auto& customer : customers)
 	{
@@ -1964,6 +3291,7 @@ void searchProduct()
 			break;
 		}
 	}
+	cout << "====================================\n";
 	cout << "Enter product name to search: ";
 	string name;
 	cin.ignore();
@@ -1992,7 +3320,7 @@ void searchProduct()
 			ProductCategoryNode* current = q.front();
 			q.pop();
 			ProductNode* product = current->getProdutTree().search(name);
-			if (product)
+			if (product && product->quantity!=0)
 			{
 				cout << "Product found in Seller, Name: " << seller.getName() << " ID: " << seller.getSellerId() << endl;
 				cout << "Category: " << current->categoryName << endl;
@@ -2009,6 +3337,8 @@ void searchProduct()
 		}
 	}
 
+
+
 	if (!found)
 	{
 		cout << "Product not found\n";
@@ -2022,18 +3352,25 @@ void searchProduct()
 	cout << "Do you want to order this product? [y/n]: ";
 	string choice;
 	cin >> choice;
-	// by seller id
-	int sellerId;
-	cout << "Enter the seller id: ";
-	cin >> sellerId;
+	
 	if (choice == "Y" || choice == "y")
-	{
+	{// by seller id
+		int sellerId;
+		cout << "Enter the seller id: ";
+		cin >> sellerId;
 		// order
 		// add to cart
 		// ask for quantity
-		cout << "Enter the quantity: ";
 		int quantity;
-		cin >> quantity;
+		try {
+			cout << "Enter the quantity: ";
+
+			cin >> quantity;
+		}
+		catch (const exception& e) {
+			cout << "An error occurred: " << e.what() << endl;
+			return;
+		}
 		if (quantity <= 0)
 		{
 			cout << "Invalid quantity\n";
@@ -2065,9 +3402,11 @@ void searchProduct()
 							if (customer.getCustomerId() == loggedInCustomerId)
 							{
 								customer.getCart().push(product, quantity);
-								// Decrease quantity
-								product->quantity -= quantity;
+								
 								cout << "Product added to cart\n";
+								system("Pause");
+
+
 								break;
 							}
 						}
@@ -2082,94 +3421,18 @@ void searchProduct()
 	}
 }
 
-
-void viewCart()
-{
-	// view cart of logged in customer
-	for (auto& customer : customers)
-	{
-		if (customer.getCustomerId() == loggedInCustomerId)
-		{
-			customer.getCart().display();
-			break;
-		}
-	}
-	// calculate total
-	int total = 0;
-	for (auto& customer : customers)
-	{
-		if (customer.getCustomerId() == loggedInCustomerId)
-		{
-			total = customer.getCart().calculateTotal();
-			break;
-		}
-	}
-	cout << "Total: " << total << endl;
-	// if want to delete something
-
-	do
-	{
-
-		cout << "Do you want to delete an item from cart? [y/n]: ";
-		string choice;
-		cin >> choice;
-		if (choice == "Y" || choice == "y")
-		{
-			cout << "Enter the name of the product to delete: ";
-			string name;
-			cin.ignore();
-			getline(cin, name);
-			for (auto& customer : customers)
-			{
-				if (customer.getCustomerId() == loggedInCustomerId)
-				{
-					customer.getCart().deleteItem(name);
-					break;
-				}
-			}
-		}
-		else
-		{
-			break;
-		}
-	} while (true && customers[loggedInCustomerId].getCart().top != NULL);
-	// checkout or go back
-	cout << "Do you want to checkout? [y/n]: ";
-	string choice;
-	cin >> choice;
-	if (choice == "Y" || choice == "y")
-	{
-		// checkout
-		// add to orders
-
-		// add to history
-		// add loyalty points
-		// empty cart
-	}
-	else
-	{
-		return;
-	}
-	return;
-}
-
-void viewOrders()
-{
-	// view orders of logged in customer
-	//get orders from the order queue
-	// display orders
-
-
-
-}
-
 void customerMenu()
 {
 	int choice = 0;
-	string loopChoice;
+
 	do
 	{
-		cout << "CUSTOMER MENU\n";
+		system("cls");
+		cout << green << endl;
+		header();
+		cout << "\n\n\n\n";
+		cout << "Main Menu > Customer Menu\n\n" << white;
+
 		cout << "1. View Categories\n";
 		cout << "2. View Cart\n";
 		cout << "3. View Orders\n";
@@ -2189,7 +3452,7 @@ void customerMenu()
 			viewCart();
 			break;
 		case 3:
-			// viewOrders();
+			viewOrders();
 			break;
 		case 4:
 			viewProfile();
@@ -2205,19 +3468,25 @@ void customerMenu()
 			break;
 		case 8:
 			cout << "Logging out...\n";
-			menus();
+			Sleep(2000);
 			return;
 		default:
 			cout << "Invalid choice\n";
 			break;
 		}
-		cout << "Do you want to perform another operation? [y/n]: ";
-		cin >> loopChoice;
-	} while (loopChoice == "Y" || loopChoice == "y");
+
+	} while (true);
 }
 
 void customerLogin()
 {
+
+	system("cls");
+
+	cout << green << endl;
+	header();
+	cout << "\n\n\n\n";
+	cout << "Main Menu > Customer Login\n\n" << white;
 	string email, password;
 	cout << "Enter the email: ";
 	cin.ignore();
@@ -2237,7 +3506,7 @@ void customerLogin()
 		}
 	}
 	cout << "Invalid email or password\n";
-	system("Pause");
+	Sleep(2000);
 	system("cls");
 }
 
@@ -2271,32 +3540,53 @@ void writeCustomersToFile()
 
 void writeSellersToFile()
 {
+	string category_id;
 	outputFile.open("seller.txt", ios::trunc);
 	outputFile.close();
 	outputFile.clear();
+	fout_product.open("product.txt", ios::trunc);
+	fout_product.close();
+	fout_product.clear();
+	fout.open("category.txt", ios::trunc);
+	fout.close();
+	fout.clear();
+	int size = sellers.size();
 	outputFile.open("seller.txt", ios::app);
 	if (outputFile.is_open())
 	{
-		for (auto seller : sellers)
+		for (int i = 0; i < size; i++)
 		{
-			if (!seller.getToDelete())
+			if (!sellers[i].getToDelete())
 			{
-				outputFile << seller.getEmail() << endl;
-				outputFile << seller.getUniqueID() << endl;
-				outputFile << seller.getPassword() << endl;
-				outputFile << seller.getAddress() << endl;
-				outputFile << seller.getProductStock() << endl;
-				ProductCategoryTree* root = &seller.getProductCategoryTree();
-				if (root)
+				outputFile << sellers[i].getEmail() << endl;
+				outputFile << sellers[i].getUniqueID() << endl;
+				outputFile << sellers[i].getPassword() << endl;
+				outputFile << sellers[i].getAddress() << endl;
+				outputFile << sellers[i].getProductStock() << endl;
+
+				fout.open("category.txt", ios::app);
+				if (fout.is_open())
 				{
+					ProductCategoryTree* root = &sellers[i].getProductCategoryTree();
+					if (root)
+					{
 
-					root->writeCategoriesInFile(outputFile);
-					outputFile << "Products" << endl;
-					root->writeProductsInFile(outputFile);
-					outputFile << "User" << endl;
+						//root->writeCategoriesInFile(outputFile);
+						//outputFile << "Products" << endl;
+						category_id = root->writeCategoriesInFile(fout, sellers[i].getUniqueID());
+						fout_product.open("product.txt", ios::app);
+						if (fout_product.is_open())
+						{//root->writeProductsInFile(outputFile);
+							root->writeProductsInFile(fout_product);
 
+						}
+						fout_product.close();
+						fout_product.clear();
+					}
 				}
 			}
+			fout.close();
+			fout.clear();
 		}
 		outputFile.close();
 		outputFile.clear();
@@ -2306,6 +3596,7 @@ void writeSellersToFile()
 		cout << "Error: Could not open file for writing.\n";
 	}
 }
+
 
 void readCustomersFromFile()
 {
@@ -2333,41 +3624,160 @@ void readCustomersFromFile()
 	}
 }
 
+//void readSellersFromFile()
+//{
+//	inputFile.open("seller.txt");
+//	string email, password, address, uniqueid, category_id, product_category_id, product_id, pname, cname;
+//	int stock = 0, price = 0;
+//	if (inputFile.is_open())
+//	{
+//		while (inputFile >> email >> uniqueid >> password >> address >> stock)
+//		{
+//			Seller temp;
+//			ProductCategoryTree category;
+//			ProductTree tree;
+//			temp.setEmail(email);
+//			temp.setUniqueID(uniqueid);
+//			temp.setPassword(password);
+//			temp.setAddress(address);
+//			temp.setProductStock(stock);
+//			fin.open("category.txt");
+//			if (fin.is_open())
+//			{
+//				while (fin >> uniqueid)
+//				{
+//					if (temp.getUniqueID() == uniqueid)
+//					{
+//						fin >> category_id >> cname;
+//						category.insert(cname, category_id);
+//						fin_product.open("product.txt");
+//						if (fin_product.is_open())
+//						{
+//							while (fin_product >> product_category_id)
+//							{
+//								if (category_id == product_category_id)
+//								{
+//									fin_product >> product_id >> pname >> price >> stock;
+//									tree.insert(pname, price, stock, product_id);
+//								}
+//							}
+//							category.root->getProdutTree().setProductTree(tree.root);
+//							fin_product.close();
+//							fin_product.clear();
+//						}
+//					}
+//				}
+//				temp.setProductCategoryTree(category.root);
+//				fin.close();
+//				fin.clear();
+//			}
+//			sellers.push_back(temp);
+//		}
+//		inputFile.close();
+//		inputFile.clear();
+//	}
+//	else
+//	{
+//		cout << "Error: Could not open file for reading.\n";
+//	}
+//}
 void readSellersFromFile()
 {
 	inputFile.open("seller.txt");
-	string email, password, address, uniqueid;
-	int stock = 0;
+	string email, password, address, uniqueid, category_id, product_category_id, product_id, pname, cname;
+	int stock = 0, price = 0;
+
 	if (inputFile.is_open())
 	{
 		while (inputFile >> email >> uniqueid >> password >> address >> stock)
 		{
 			Seller temp;
+			ProductCategoryTree Realcategory;
+			
+
 			temp.setEmail(email);
 			temp.setUniqueID(uniqueid);
 			temp.setPassword(password);
 			temp.setAddress(address);
 			temp.setProductStock(stock);
-			ProductCategoryTree* root = &temp.getProductCategoryTree();
-			root->readCategoriesFromFile(inputFile);
-			root->readProductsFromFile(inputFile);
-			
+
+			fin.open("category.txt");
+			if (fin.is_open())
+			{
+				while (fin >> uniqueid) // Read category data
+				{
+					if (temp.getUniqueID() == uniqueid)
+					{
+						ProductCategoryTree category;
+						fin >> category_id >> cname; // Read category ID and name
+						category.insert(cname, category_id); // Insert the category
+						ProductTree tree;
+
+						fin_product.open("product.txt"); // Open the product file
+						if (fin_product.is_open())
+						{
+							// Loop through all products to find matches for the category
+							while (fin_product >> product_category_id)
+							{
+								if (product_category_id[0] == 't' && category_id == product_category_id)
+								{
+									// Match found: Read product details
+									fin_product >> product_id >> pname >> price >> stock;
+									tree.insert(pname, price, stock, product_id, uniqueid); // Insert product into tree
+								}
+								/*else if (product_category_id[0] != 't')
+									break;*/
+							}
+
+							// Assign the populated tree to the current category
+							category.root->getProdutTree().setProductTree(tree.root);
+							Realcategory.insertTree(category);
+							
+							// Reset product file stream for next category
+							fin_product.close();
+							fin_product.clear();
+						}
+					}
+				}
+
+				// Assign the populated category tree to the seller
+				temp.setProductCategoryTree(Realcategory.root);
+
+				// Reset category file stream for next seller
+				fin.close();
+				fin.clear();
+			}
+
+			// Add the seller to the list
 			sellers.push_back(temp);
 		}
+
+		// Close the seller file
 		inputFile.close();
 		inputFile.clear();
 	}
 	else
 	{
-		cout << "Error: Could not open file for reading.\n";
+		cout << "Error: Could not open seller file for reading.\n";
 	}
 }
 void menus()
 {
-	do {
+	char c;
+
+	do
+	{
+
+		//clear screen
+		system("cls");
+		cout << green << endl;
+		header();
+		cout << "\n\n\n\n";
+		cout << "Main Menu\n" << white;
 		cout << "\n1. Admin Menu";
 		cout << "\n2. Seller Menu";
 		cout << "\n3. Customer Menu";
+		cout << "\n4. Exit\n";
 		int choice;
 		cout << "\nYour choice: ";
 		cin >> choice;
@@ -2382,35 +3792,36 @@ void menus()
 		case 3:
 			customerLogin();
 			break;
+		case 4:
+			cout << "Exiting...\n";
+			return;
+			break;
 		default:
 			cout << "Invalid choice\n";
 			break;
 		}
 
-		cout << "Want to login again? Enter y :  ";
-		char c;
-		cin >> c;
-		if (c != 'y' && c != 'Y')
-			break;
+
+		/*if (c != 'y' && c != 'Y')
+			break;*/
 	} while (true);
 }
+
 int main()
 {
-	Seller s1;
-	s1.setEmail("a");
-	s1.setPassword("a");
-	s1.setAddress("Lahore");
-	sellers.push_back(s1);
-	Customer c1;
-	c1.setEmail("a");
-	c1.setPassword("a");
-	c1.setAddress("Lahore");
-	customers.push_back(c1);
-
 	outputFile.open("customer.txt", ios::app);
 	outputFile.close();
 	outputFile.clear();
 	outputFile.open("seller.txt", ios::app);
+	outputFile.close();
+	outputFile.clear();
+	outputFile.open("category.txt", ios::app);
+	outputFile.close();
+	outputFile.clear();
+	outputFile.open("product.txt", ios::app);
+	outputFile.close();
+	outputFile.clear();
+	outputFile.open("orderQueue.txt", ios::trunc);
 	outputFile.close();
 	outputFile.clear();
 	readCustomersFromFile();
@@ -2418,5 +3829,6 @@ int main()
 	menus();
 	writeSellersToFile();
 	writeCustomersToFile();
+	writeOrderQueueinFile();
 	return 0;
 }
